@@ -75,11 +75,20 @@ def rsync_and_snap_all_yms(snap_dirs_by_fs: dict[str, set[str]], dry_run=False) 
                 verbose_run_or_print(
                     args=[
                         "rsync",
+
                         "--archive",
-                        "--hard-links",
-                        "--no-whole-file",
-                        "--inplace",
                         "--delete",
+                        "--hard-links",
+
+                        # see the README as to why we might be tempted to use
+                        # these options, but shouldn't; --whole-file should be
+                        # the default in this context but I'm specifying it
+                        # anyway to make sure
+
+                        # "--no-whole-file",
+                        # "--inplace",
+                        "--whole-file",
+
                         f"{from_snap}/",
                         mountpoint
                     ]

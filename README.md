@@ -33,32 +33,19 @@ to know the names of my disks and pools.
 
 ## Known problems
 
-### Correctness
-
-The zfs rsync uses `--inplace` in combination with `--hard-links`. The idea is
-to get the zfs filesystem looking like the new snapshot with the minimum disk
-writes, so the snapshot takes up the least space possible. The trouble is that
-rsync will not break existing hard links on the destination, so that if you
-initially had two files be hard links of each other, then changed them to be two
-separate files and updated one, rsync will apply the update, but won't break the
-link, so the other file gets updated as well.
-
-I think this is not an issue in my case because I think I only use hard links in
-git repositories and my Nix store, and (I hope?) in both those cases the files
-are content-addressed, so they wouldn't be updated or un-hard-linked later. But
-I'm not really sure. I'm going to write a script to check, but it's not done yet.
-
 ### Performance
+
+#### No rename detection
 
 The rsync doesn't detect renames, they become an add + delete. This is a quite
 common complaint about rsync, so there are some patches to address it, but I
 haven't tried to use them, and would prefer to stick to "vanilla" rsync code,
 since correctness is important here.
 
-I will probably address this by inferring renames from the btrfs sources by
-looking at inodes, and apply those renames before doing the rsync. In principle,
-this shouldn't impact correctness, since the rsync would correct any mistakes I
-made. But again, the presence of hard links makes it a bunch more complicated.
+I will probably address this by inferring renames from the btrfs sources,
+perhaps using `btrfs receive --dump`, and apply those renames before doing the
+rsync. In principle, this shouldn't impact correctness, since the rsync would
+correct any mistakes I made.
 
 (It's also possible for this to result in larger snapshots, e.g. if what you
 did on the source was `mv A B; cp B A; completely rewrite B` and you'd actually
@@ -71,3 +58,24 @@ absence of that you could still detect renames using entirely "content-based"
 methods (e.g. using a content-addressable store, or even do something more
 exotic that can recognise similar but not identical files), but it sounds like
 more work than I'd like to do.
+
+#### Unable to use no-whole-file + inplace rsync
+
+Common wisdom to minimise changes with rsync in copy-on-write scenarios is to
+use `--no-whole-file --inplace`, so that if a small part of your file is
+updated, rsync won't rewrite the rest of the file. (Whole-file transfers are
+default when both paths are local, as is the case here.) However, there's a
+correctness problem with doing this in the presence of `--hard-links`, which is
+that rsync won't break hard links in the destination that aren't present in the
+source. Thus, if you have two hardlinked files in the source, you rsync them,
+and then you break the hard links in the source, update one of them, and rsync
+again, they may both be updated in the destination. Using whole-file updates
+breaks the hard link and thus avoids the problem.
+
+Another solution would be to drop `--hard-links`, but:
+
+- faithful reproduction of as much as my filesystem as possible seems more
+  important than using as little space as possible,
+- my system does use hard links in some contexts, and I imagine most file
+  modifications replace the whole file anyway, so it's not even clear which
+  of the options minimizes space usage.

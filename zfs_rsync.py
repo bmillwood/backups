@@ -100,6 +100,7 @@ def rsync_and_snap_all_yms(snap_dirs_by_fs: dict[str, set[str]], dry_run=False) 
                         f"{pool}/{fs}@{ym}",
                     ],
                 )
+                verbose_run_or_print(args=["df", "-h", mountpoint])
                 if not dry_run:
                     with open(f"last-ym-rsynced-{pool}-{fs}", "w") as record_file:
                         record_file.write(f"{ym}\n")

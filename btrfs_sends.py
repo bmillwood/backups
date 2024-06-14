@@ -31,7 +31,7 @@ def send_snap(parent_path: str, snap_path: str, receive_path: str):
     print(cmd)
 
     btrfs_receive = subprocess.Popen(
-        ["btrfs", "receive", receive_path],
+        cmd,
         stdin=btrfs_send.stdout,
     )
 

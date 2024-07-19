@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import os
 import subprocess
 import sys
-import os
+from typing import Any, Optional
 
 import config
 
@@ -17,7 +18,10 @@ def choose_remote() -> str:
     return existing_remotes.pop()
 
 
-def send_snap(parent_path: str, snap_path: str, receive_path: str):
+def start_sending_snap(parent_path: str, snap_path: str, receive_arg: str, extra_receive_params: Optional[dict[str, Any]] = None) -> tuple[subprocess.Popen, subprocess.Popen]:
+    if extra_receive_params is None:
+        extra_receive_params = {}
+
     cmd = ["btrfs", "send", "-p", parent_path, snap_path]
     print(cmd)
 
@@ -27,17 +31,29 @@ def send_snap(parent_path: str, snap_path: str, receive_path: str):
     )
     assert btrfs_send.stdout is not None
 
-    cmd = ["btrfs", "receive", receive_path]
+    cmd = ["btrfs", "receive", receive_arg]
     print(cmd)
 
     btrfs_receive = subprocess.Popen(
         cmd,
         stdin=btrfs_send.stdout,
+        **extra_receive_params,
     )
 
     # This file descriptor is copied into the subprocess. Ensure that the
     # subprocess has the only copy of it, for SIGPIPE reasons.
     btrfs_send.stdout.close()
+
+    return (btrfs_send, btrfs_receive)
+
+
+def send_snap(parent_path: str, snap_path: str, receive_path: str) -> None:
+    btrfs_send, btrfs_receive = start_sending_snap(
+        parent_path=parent_path,
+        snap_path=snap_path,
+        receive_arg=receive_path,
+    )
+
     btrfs_send.wait()
     btrfs_receive.wait()
     if btrfs_send.returncode != 0 or btrfs_receive.returncode != 0:

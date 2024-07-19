@@ -1,11 +1,24 @@
 #!/usr/bin/env python3
 
 import os
+import select
 import subprocess
 import sys
 from typing import Any, Optional
 
 import config
+
+
+def polite_interrupt() -> bool:
+    ready, _, _ = select.select([sys.stdin], [], [], 0)
+    if ready:
+        keyword = "stop"
+        answer = input(f"'{keyword}' to interrupt: ")
+        if answer == keyword:
+            return True
+        else:
+            print(f"{answer!r} != {keyword!r}, continuing")
+            return False
 
 
 def choose_remote() -> str:
@@ -97,6 +110,8 @@ def send_snaps(local_dirs: set[str], remote: str) -> None:
         receive_path = f"{remote}/{year}"
         assert os.path.isdir(receive_path)
         send_snap(parent_path=parent_path, snap_path=snap_path, receive_path=receive_path)
+        if polite_interrupt():
+            break
         parent = snap_to_send
 
 

@@ -45,7 +45,9 @@ since correctness is important here.
 I will probably address this by inferring renames from the btrfs sources,
 perhaps using `btrfs receive --dump`, and apply those renames before doing the
 rsync. In principle, this shouldn't impact correctness, since the rsync would
-correct any mistakes I made.
+correct any mistakes I made. I haven't done this yet because I don't have a new
+enough version of `btrfs-progs` locally to pick up the fix for
+[this issue](https://github.com/kdave/btrfs-progs/issues/818).
 
 (It's also possible for this to result in larger snapshots, e.g. if what you
 did on the source was `mv A B; cp B A; completely rewrite B` and you'd actually

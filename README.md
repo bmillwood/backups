@@ -81,3 +81,11 @@ Another solution would be to drop `--hard-links`, but:
 - my system does use hard links in some contexts, and I imagine most file
   modifications replace the whole file anyway, so it's not even clear which
   of the options minimizes space usage.
+
+Strictly speaking, this can still result in a correctness problem where if you
+break a hardlink in the source but don't modify either file, then they may
+remain hardlinked in the destination. This has been reported as an rsync
+[bug](https://bugzilla.samba.org/show_bug.cgi?id=3693), but it hasn't received a
+lot of enthusiasm. I feel reasonably comfortable assuming that I never break a
+hard link without also modifying at least one of the files, although I'd feel
+even more comfortable if I didn't have to assume that.

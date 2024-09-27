@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 import config
 
+BTRFS = "btrfs"
 
 def polite_interrupt() -> bool:
     ready, _, _ = select.select([sys.stdin], [], [], 0)
@@ -35,7 +36,7 @@ def start_sending_snap(parent_path: str, snap_path: str, receive_arg: str, extra
     if extra_receive_params is None:
         extra_receive_params = {}
 
-    cmd = ["btrfs", "send", "-p", parent_path, snap_path]
+    cmd = [BTRFS, "send", "-p", parent_path, snap_path]
     print(cmd)
 
     btrfs_send = subprocess.Popen(
@@ -44,7 +45,7 @@ def start_sending_snap(parent_path: str, snap_path: str, receive_arg: str, extra
     )
     assert btrfs_send.stdout is not None
 
-    cmd = ["btrfs", "receive", receive_arg]
+    cmd = [BTRFS, "receive", receive_arg]
     print(cmd)
 
     btrfs_receive = subprocess.Popen(
@@ -71,7 +72,7 @@ def send_snap(parent_path: str, snap_path: str, receive_path: str) -> None:
     btrfs_receive.wait()
     if btrfs_send.returncode != 0 or btrfs_receive.returncode != 0:
         sys.stderr.write(
-            f"btrfs send exited {btrfs_send.returncode},"
+            f"{BTRFS} send exited {btrfs_send.returncode},"
             f" receive {btrfs_receive.returncode}\n"
         )
         sys.exit(1)

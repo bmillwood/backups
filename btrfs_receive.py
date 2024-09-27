@@ -9,11 +9,11 @@ import sys
 import btrfs_sends
 
 def unbackslash(inp: str) -> str:
-    bits: list[str] = []
+    bits: list[int] = []
     i = 0
     while i < len(inp):
         if inp[i] != '\\':
-            c = inp[i]
+            c = ord(inp[i])
             i += 1
         else:
             i += 1
@@ -29,17 +29,17 @@ def unbackslash(inp: str) -> str:
                 'v': '\v',
             }
             try:
-                c = special_cases[inp[i]]
+                c = ord(special_cases[inp[i]])
                 i += 1
             except KeyError:
                 if inp[i].isdigit():
-                    c = chr(int(inp[i:i + 3], base=8))
+                    c = int(inp[i:i + 3], base=8)
                     i += 3
                 else:
-                    c = inp[i]
+                    c = ord(inp[i])
                     i += 1
         bits.append(c)
-    return "".join(bits)
+    return bytes(bits).decode("UTF-8")
 
 @dataclass
 class Line:
@@ -74,11 +74,15 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
     assert btrfs_receive.stdout
     snap_name = os.path.basename(snap_path)
     prefix = f"./{snap_name}/"
+    bdest = dest.encode("UTF-8")
 
     def r(path):
         assert not os.path.isabs(path)
         assert ".." not in path.split("/")
-        return os.path.join(dest, path)
+        fullpath = os.path.join(bdest, path.encode("UTF-8"))
+        if '\\xc3\\x83' in str(fullpath):
+            print(repr(path))
+        return fullpath
 
     def p(path):
         assert path.startswith(prefix)
@@ -99,8 +103,11 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
             case "mkfile":
                 open(p(parsed.path), "x").close()
             case "symlink":
-                # leave target alone
-                os.symlink(src=parsed.args["dest"], dst=p(parsed.path))
+                # target doesn't need to be re-relativized or anything
+                os.symlink(
+                    src=parsed.args["dest"].encode("UTF-8"),
+                    dst=p(parsed.path),
+                )
             case "mkdir":
                 os.mkdir(p(parsed.path))
             case "mksock":

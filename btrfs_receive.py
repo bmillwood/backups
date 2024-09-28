@@ -8,7 +8,7 @@ import sys
 
 import btrfs_sends
 
-def unbackslash(inp: str) -> str:
+def unbackslash(inp: str) -> bytes:
     bits: list[int] = []
     i = 0
     while i < len(inp):
@@ -39,25 +39,23 @@ def unbackslash(inp: str) -> str:
                     c = ord(inp[i])
                     i += 1
         bits.append(c)
-    return bytes(bits).decode("UTF-8")
+    return bytes(bits)
 
 @dataclass
 class Line:
     command: str
-    path: str
-    args: dict[str, str]
+    path: bytes
+    args: dict[str, bytes]
 
     @classmethod
     def parse(cls, line: str):
         match_ = re.fullmatch(r"([^ ]+) +(([^\\ ]|\\.)+)(.*)\n", line)
         if match_ is None:
             raise ValueError(line)
-        command = match_[1]
-        path = unbackslash(match_[2])
         args = re.findall(r" ([a-z_]+)=((?:[^\\ ]|\\.)+)", match_[4])
         return cls(
-            command=command,
-            path=path,
+            command=match_[1],
+            path=unbackslash(match_[2]),
             args={k: unbackslash(v) for k, v in args},
         )
 
@@ -73,15 +71,13 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
     )
     assert btrfs_receive.stdout
     snap_name = os.path.basename(snap_path)
-    prefix = f"./{snap_name}/"
+    prefix = f"./{snap_name}/".encode("UTF-8")
     bdest = dest.encode("UTF-8")
 
     def r(path):
         assert not os.path.isabs(path)
-        assert ".." not in path.split("/")
-        fullpath = os.path.join(bdest, path.encode("UTF-8"))
-        if '\\xc3\\x83' in str(fullpath):
-            print(repr(path))
+        assert b".." not in path.split(b"/")
+        fullpath = os.path.join(bdest, path)
         return fullpath
 
     def p(path):
@@ -103,9 +99,9 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
             case "mkfile":
                 open(p(parsed.path), "x").close()
             case "symlink":
-                # target doesn't need to be re-relativized or anything
+                # target (= src) doesn't need to be re-relativized or anything
                 os.symlink(
-                    src=parsed.args["dest"].encode("UTF-8"),
+                    src=parsed.args["dest"],
                     dst=p(parsed.path),
                 )
             case "mkdir":

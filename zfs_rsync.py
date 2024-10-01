@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+import select
 import subprocess
 import sys
 import os
@@ -6,6 +8,18 @@ from typing import Callable
 
 import btrfs_receive
 import config
+
+
+def polite_interrupt() -> bool:
+    ready, _, _ = select.select([sys.stdin], [], [], 0)
+    if ready:
+        keyword = "stop"
+        answer = input(f"'{keyword}' to interrupt: ")
+        if answer == keyword:
+            return True
+        else:
+            print(f"{answer!r} != {keyword!r}, continuing")
+            return False
 
 
 def verbose_run(args: list[str], **kwargs):
@@ -66,6 +80,7 @@ def rsync_and_snap_all_yms(
         use_btrfs_to_detect_renames: bool = False,
 ) -> None:
     available_yms = {fs: srcs_by_ym_from(src_dirs=ds) for fs, ds in snap_dirs_by_fs.items()}
+    verbose_run_or_print = lambda args: print(args) if dry_run else verbose_run(args=args)
 
     for pool, existing_snaps_by_fs in snaps_by_pool().items():
         for fs, available in available_yms.items():
@@ -77,6 +92,8 @@ def rsync_and_snap_all_yms(
             if use_btrfs_to_detect_renames:
                 parent_snap = available[max(existing_snaps_by_fs[fs])]
             for ym in todo:
+                if polite_interrupt():
+                    break
                 from_snap = available[ym]
                 if use_btrfs_to_detect_renames:
                     if dry_run:

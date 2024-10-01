@@ -66,9 +66,9 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
         receive_arg="--dump",
         extra_receive_params={
             "stdout": subprocess.PIPE,
-            "encoding": "UTF-8",
         },
     )
+
     assert btrfs_receive.stdout
     snap_name = os.path.basename(snap_path)
     prefix = f"./{snap_name}/".encode("UTF-8")
@@ -84,37 +84,47 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
         assert path.startswith(prefix)
         return r(path.removeprefix(prefix))
 
+    i = 0
     for line in btrfs_receive.stdout:
-        parsed = Line.parse(line=line)
+        parsed = Line.parse(line=line.decode("UTF-8"))
+        if i % 1000 == 0:
+            sys.stdout.write(".")
+        i += 1
 
         match parsed.command:
             case "rename":
-                os.rename(p(parsed.path), p(parsed.args["dest"]))
+                src = p(parsed.path)
+                os.rename(src, p(parsed.args["dest"]))
             case "unlink":
-                os.unlink(p(parsed.path))
+                path = p(parsed.path)
+                os.unlink(path)
             case "rmdir":
-                os.rmdir(p(parsed.path))
+                path = p(parsed.path)
+                os.rmdir(path)
             case "link":
-                os.link(r(parsed.args["dest"]), p(parsed.path))
-            case "mkfile":
-                open(p(parsed.path), "x").close()
+                path = p(parsed.path)
+                os.link(r(parsed.args["dest"]), path)
+            case "mkfile" | "clone" | "mksock":
+                # for clone and mksock this isn't exactly correct but should at
+                # least ensure future renames etc. work
+                path = p(parsed.path)
+                open(path, "x").close()
             case "symlink":
                 # target (= src) doesn't need to be re-relativized or anything
+                path = p(parsed.path)
                 os.symlink(
                     src=parsed.args["dest"],
-                    dst=p(parsed.path),
+                    dst=path,
                 )
             case "mkdir":
-                os.mkdir(p(parsed.path))
-            case "mksock":
-                # not exactly correct but should be close enough
-                open(p(parsed.path), "x").close()
+                path = p(parsed.path)
+                os.mkdir(path)
             case "snapshot" | "utimes" | "write" | "truncate" | "chown" | "chmod" | "set_xattr":
                 continue
             # Took these from:
             # https://github.com/kdave/btrfs-progs/blob/8859114eaee39c117ff95f5b60b4e81fc22f96e7/cmds/receive-dump.c#L338
             # but haven't come across them in my snapshots yet
-            case "mknod" | "mkfifo" | "clone" | "remove_xattr" | "update_extent" | "fallocate" | "fileattr" | "enable_verity":
+            case "mknod" | "mkfifo" | "remove_xattr" | "update_extent" | "fallocate" | "fileattr" | "enable_verity":
                 assert False, parsed
 
     btrfs_send.wait()
@@ -124,4 +134,7 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
             f"btrfs send exited {btrfs_send.returncode}, "
             f"receive {btrfs_receive.returncode}\n"
         )
-        sys.exit(1)
+        # btrfs send gets SIGPIPE'd sometimes. I don't understand why. Just
+        # keep going.
+        if btrfs_send.returncode != -13 or btrfs_receive.returncode != 0:
+            sys.exit(1)

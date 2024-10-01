@@ -47,12 +47,15 @@ class Line:
     path: bytes
     args: dict[str, bytes]
 
+    line_regex = re.compile(r"([^ ]+) +(([^\\ ]|\\.)+)(.*)\n")
+    args_regex = re.compile(r" ([a-z_]+)=((?:[^\\ ]|\\.)+)")
+
     @classmethod
     def parse(cls, line: str):
-        match_ = re.fullmatch(r"([^ ]+) +(([^\\ ]|\\.)+)(.*)\n", line)
+        match_ = cls.line_regex.fullmatch(line)
         if match_ is None:
             raise ValueError(line)
-        args = re.findall(r" ([a-z_]+)=((?:[^\\ ]|\\.)+)", match_[4])
+        args = cls.args_regex.findall(match_[4])
         return cls(
             command=match_[1],
             path=unbackslash(match_[2]),
@@ -89,6 +92,7 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
         parsed = Line.parse(line=line.decode("UTF-8"))
         if i % 1000 == 0:
             sys.stdout.write(".")
+            sys.stdout.flush()
         i += 1
 
         match parsed.command:

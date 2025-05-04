@@ -12,14 +12,17 @@ BTRFS = "btrfs"
 
 def polite_interrupt() -> bool:
     ready, _, _ = select.select([sys.stdin], [], [], 0)
-    if ready:
-        keyword = "stop"
-        answer = input(f"'{keyword}' to interrupt: ")
-        if answer == keyword:
-            return True
-        else:
-            print(f"{answer!r} != {keyword!r}, continuing")
-            return False
+
+    if not ready:
+        return False
+
+    keyword = "stop"
+    answer = input(f"'{keyword}' to interrupt: ")
+    if answer == keyword:
+        return True
+    else:
+        print(f"{answer!r} != {keyword!r}, continuing")
+        return False
 
 
 def choose_remote() -> str:

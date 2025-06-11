@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import datetime
 import os
 import select
 import subprocess
 import sys
+import time
 from typing import Any, Optional
 
 import config
@@ -105,7 +107,11 @@ def send_snaps(local_dirs: set[str], remote: str) -> None:
         remote=remote,
     )
 
+    times = []
+    num_remaining = len(snaps_to_send)
     for snap_to_send in snaps_to_send:
+        print(f"{num_remaining} more to send")
+        start_time = time.time()
         parent_path = local_snap_paths[parent]
         assert os.path.isdir(parent_path)
         snap_path = local_snap_paths[snap_to_send]
@@ -114,6 +120,19 @@ def send_snaps(local_dirs: set[str], remote: str) -> None:
         receive_path = f"{remote}/{year}"
         assert os.path.isdir(receive_path)
         send_snap(parent_path=parent_path, snap_path=snap_path, receive_path=receive_path)
+        num_remaining -= 1
+        end_time = time.time()
+        elapsed = datetime.timedelta(seconds=end_time - start_time)
+        print(f"Snapshot took {elapsed}")
+        if not num_remaining:
+            break
+        times.append(elapsed)
+        print("Estimated remaining time:")
+        print(f"  {elapsed * num_remaining} (based on this send)")
+        sample = times[-5:]
+        if len(sample) > 1:
+            avg = sum(sample, start=datetime.timedelta(0)) / len(sample)
+            print(f"  {avg * num_remaining} (based on average of the last {len(sample)})")
         if polite_interrupt():
             break
         parent = snap_to_send

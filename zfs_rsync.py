@@ -133,7 +133,7 @@ def rsync_and_snap_all_yms(
                         f"{pool}/{fs}@{ym}",
                     ],
                 )
-                verbose_run_or_print(args=["df", "-h", mountpoint])
+                verbose_run_or_print(args=["zfs", "list"])
                 if use_btrfs_to_detect_renames:
                     parent_snap = from_snap
                 if not dry_run:

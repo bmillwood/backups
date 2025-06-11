@@ -108,11 +108,15 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
             case "link":
                 path = p(parsed.path)
                 os.link(r(parsed.args["dest"]), path)
-            case "mkfile" | "clone" | "mksock":
-                # for clone and mksock this isn't exactly correct but should at
+            case "mkfile" | "mksock" | "mkfifo":
+                # for the special file cases this isn't correct but should at
                 # least ensure future renames etc. work
                 path = p(parsed.path)
-                open(path, "x").close()
+                try:
+                    open(path, "x").close()
+                except FileExistsError:
+                    print(parsed)
+                    raise
             case "symlink":
                 # target (= src) doesn't need to be re-relativized or anything
                 path = p(parsed.path)
@@ -123,12 +127,14 @@ def do_receive(parent_path: str, snap_path: str, dest: str) -> None:
             case "mkdir":
                 path = p(parsed.path)
                 os.mkdir(path)
-            case "snapshot" | "utimes" | "write" | "truncate" | "chown" | "chmod" | "set_xattr":
+            case "snapshot" | "utimes" | "write" | "clone" | "truncate" | "chown" | "chmod" | "set_xattr":
+                # I think clone is just like write, and doesn't create the
+                # target file, but I'm not sure.
                 continue
             # Took these from:
             # https://github.com/kdave/btrfs-progs/blob/8859114eaee39c117ff95f5b60b4e81fc22f96e7/cmds/receive-dump.c#L338
             # but haven't come across them in my snapshots yet
-            case "mknod" | "mkfifo" | "remove_xattr" | "update_extent" | "fallocate" | "fileattr" | "enable_verity":
+            case "mknod" | "remove_xattr" | "update_extent" | "fallocate" | "fileattr" | "enable_verity":
                 assert False, parsed
 
     btrfs_send.wait()

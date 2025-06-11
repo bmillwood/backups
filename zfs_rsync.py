@@ -146,4 +146,6 @@ if __name__ == "__main__":
         snap_dirs_by_fs={
             "root": config.btrfs_srcs,
         },
+        dry_run=False,
+        use_btrfs_to_detect_renames=False,
     )

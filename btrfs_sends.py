@@ -37,6 +37,51 @@ def choose_remote() -> str:
     return existing_remotes.pop()
 
 
+def btrfs_subvolume_show(subvolume_path: str) -> dict[str, str]:
+    ret: dict[str, str] = {}
+
+    cmd = [BTRFS, "subvolume", "show", subvolume_path]
+    print(cmd)
+    show = subprocess.run(
+        cmd,
+        check=True,
+        stdout=subprocess.PIPE,
+        encoding="UTF-8",
+    )
+
+    lines = show.stdout.splitlines()
+    # lines[0] is subvolume path
+    for line in lines[1:]:
+        try:
+            key, v = line.split(":", maxsplit=1)
+            ret[key.lstrip()] = v.lstrip()
+        except ValueError:
+            raise ValueError(line)
+
+    return ret
+
+
+def check_parent_was_finished(local_parent: str, remote_parent: str) -> None:
+    local_show = btrfs_subvolume_show(subvolume_path=local_parent)
+    remote_show = btrfs_subvolume_show(subvolume_path=remote_parent)
+
+    try:
+        local_uuid = local_show["UUID"]
+        remote_received_uuid = remote_show["Received UUID"]
+        remote_flags = remote_show["Flags"]
+    except KeyError as k:
+        raise ValueError(k, local_show, remote_show)
+    if remote_received_uuid == "-":
+        raise ValueError(f"{remote_parent!r} has no Received UUID")
+    elif "readonly" not in remote_show["Flags"]:
+        raise ValueError(f"{remote_parent!r} is not read-only")
+    elif remote_received_uuid != local_uuid:
+        raise ValueError(
+            f"{remote_parent!r} Received UUID {remote_received_uuid!r}"
+            f" does not match {local_parent!r} UUID {local_uuid!r}"
+        )
+
+
 def start_sending_snap(parent_path: str, snap_path: str, receive_arg: str, extra_receive_params: Optional[dict[str, Any]] = None) -> tuple[subprocess.Popen, subprocess.Popen]:
     if extra_receive_params is None:
         extra_receive_params = {}
@@ -105,6 +150,10 @@ def send_snaps(local_dirs: set[str], remote: str) -> None:
     parent, snaps_to_send = which_snaps_to_send(
         local_snaps=set(local_snap_paths.keys()),
         remote=remote,
+    )
+    check_parent_was_finished(
+        local_parent=local_snap_paths[parent],
+        remote_parent=f"{remote}/{parent[:4]}/{parent}",
     )
 
     times = []
